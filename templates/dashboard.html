@@ -175,80 +175,65 @@
     </div>
 
     <div class="card">
-        <h2>⏱️ Attention Span</h2>
+        <h2>📈 Artist Movers</h2>
+        {% if artist_movers.total_movers > 0 %}
         <p class="witty-tag">
-            {% if attention_span.diff_secs > 15 %}
-                Your recent tracks are <strong>{{ attention_span.diff_secs }}s shorter</strong> than your all-time faves. TikTok brain?
-            {% elif attention_span.diff_secs < -15 %}
-                You're listening to longer songs lately. Committing to the journey.
-            {% else %}
-                Your song length is consistent. You know what you want.
+            {{ artist_movers.total_movers }} artists shifted ranks between your all-time and recent top lists.
+        </p>
+        <div style="display: flex; gap: 24px;">
+            {% if artist_movers.top_gainers %}
+            <div style="flex: 1;">
+                <p style="font-size: 0.8rem; color: #1db954; margin-bottom: 8px;">▲ Biggest Gains</p>
+                {% for m in artist_movers.top_gainers %}
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px solid #1a1a1a;">
+                    <span>{{ m.name }}</span>
+                    <span style="color: #1db954;">#{{ m.old_rank }} → #{{ m.new_rank }}</span>
+                </div>
+                {% endfor %}
+            </div>
             {% endif %}
-        </p>
-        <div style="display: flex; gap: 16px; justify-content: center; text-align: center;">
-            <div>
-                <div class="stat-number">{{ attention_span.short_term_secs|floatformat:0 }}s</div>
-                <div class="stat-label">Recent (4 weeks)</div>
+            {% if artist_movers.top_losers %}
+            <div style="flex: 1;">
+                <p style="font-size: 0.8rem; color: #ff4444; margin-bottom: 8px;">▼ Biggest Drops</p>
+                {% for m in artist_movers.top_losers %}
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 0.85rem; border-bottom: 1px solid #1a1a1a;">
+                    <span>{{ m.name }}</span>
+                    <span style="color: #ff4444;">#{{ m.old_rank }} → #{{ m.new_rank }}</span>
+                </div>
+                {% endfor %}
             </div>
-            <div>
-                <div class="stat-number">{{ attention_span.long_term_secs|floatformat:0 }}s</div>
-                <div class="stat-label">All Time</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="grid-2">
-    <div class="card">
-        <h2>🧭 Adventurousness</h2>
-        <p class="witty-tag">
-            {% if adventurousness.trend == 'expanding' %}
-                Your palette is <strong>expanding</strong> — {{ adventurousness.ranges.short_term.count }} genres now vs {{ adventurousness.ranges.long_term.count }} historically.
-            {% elif adventurousness.trend == 'narrowing' %}
-                You're <strong>honing in</strong> — {{ adventurousness.ranges.short_term.count }} genres lately vs {{ adventurousness.ranges.long_term.count }} historically.
-            {% else %}
-                Consistent {{ adventurousness.ranges.short_term.count }} genres. You know what you like.
             {% endif %}
-        </p>
-        <div style="display: flex; gap: 16px; justify-content: center; text-align: center;">
-            <div>
-                <div class="stat-number">{{ adventurousness.ranges.short_term.count }}</div>
-                <div class="stat-label">Recent Genres</div>
-            </div>
-            <div>
-                <div class="stat-number">{{ adventurousness.ranges.long_term.count }}</div>
-                <div class="stat-label">All-Time Genres</div>
-            </div>
         </div>
-    </div>
-
-    {% if library_stats %}
-    <div class="card">
-        <h2>💾 Saved Library</h2>
-        <p class="witty-tag">
-            You've got <strong>{{ library_stats.total_tracks }}</strong> saved tracks — that's {{ library_stats.total_hours }} hours of music.
-        </p>
-        <div style="display: flex; gap: 32px; align-items: center; justify-content: center; text-align: center;">
-            <div>
-                <div class="stat-number">{{ library_stats.total_tracks }}</div>
-                <div class="stat-label">Saved Tracks</div>
-            </div>
-            <div>
-                <div class="stat-number">{{ library_stats.total_hours }}</div>
-                <div class="stat-label">Hours</div>
-            </div>
-        </div>
-        {% if library_stats.top_saved_artists %}
-        <div style="margin-top: 12px;">
-            <p style="font-size: 0.8rem; color: #666;">Most saved:</p>
-            {% for name in library_stats.top_saved_artists %}
-            <span class="badge">{{ name }}</span>
-            {% endfor %}
-        </div>
+        {% else %}
+        <p class="witty-tag">Your top artists haven't moved much. Consistent taste.</p>
         {% endif %}
     </div>
-    {% endif %}
 </div>
+
+{% if recent_plays %}
+<div class="card">
+    <h2>🎯 Recent Activity</h2>
+    <p class="witty-tag">Your last {{ recent_plays.total_plays }} plays, dissected.</p>
+    <div style="display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; text-align: center;">
+        <div>
+            <div class="stat-number">{{ recent_plays.top_artist.plays }}</div>
+            <div class="stat-label">Plays of <strong>{{ recent_plays.top_artist.name }}</strong></div>
+        </div>
+        <div>
+            <div class="stat-number">{{ recent_plays.top_track.plays }}</div>
+            <div class="stat-label">Plays of <strong>{{ recent_plays.top_track.name }}</strong></div>
+        </div>
+        <div>
+            <div class="stat-number">{{ recent_plays.top_day.name }}</div>
+            <div class="stat-label">Most active day ({{ recent_plays.top_day.plays }} plays)</div>
+        </div>
+        <div>
+            <div class="stat-number">{{ recent_plays.peak_hour }}</div>
+            <div class="stat-label">Peak hour</div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% if listening_times %}
 <div class="card">

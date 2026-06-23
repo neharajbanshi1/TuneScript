@@ -141,12 +141,11 @@ def dashboard(request):
     genre_data = _compute_genre_data(session_obj)
     taste_shift = _compute_taste_shift(session_obj)
     listening_times = _compute_listening_times(session_obj)
-    library_stats = _compute_library_stats(session_obj)
     commitment = _compute_commitment(session_obj)
     concentration = _compute_concentration(session_obj)
     album_obsession = _compute_album_obsession(session_obj)
-    adventurousness = _compute_adventurousness(session_obj)
-    attention_span = _compute_attention_span(session_obj)
+    artist_movers = _compute_artist_movers(session_obj)
+    recent_plays = _compute_recent_plays(session_obj)
 
     display_name = request.session.get('display_name', 'You')
 
@@ -157,12 +156,11 @@ def dashboard(request):
         'genres': genre_data,
         'taste_shift': taste_shift,
         'listening_times': listening_times,
-        'library_stats': library_stats,
         'commitment': commitment,
         'concentration': concentration,
         'album_obsession': album_obsession,
-        'adventurousness': adventurousness,
-        'attention_span': attention_span,
+        'artist_movers': artist_movers,
+        'recent_plays': recent_plays,
     }
     return render(request, 'dashboard.html', context)
 
@@ -373,57 +371,67 @@ def _compute_album_obsession(session_obj):
     }
 
 
-def _compute_adventurousness(session_obj):
-    results = {}
-    for tr, label in [('short_term', 'Last 4 Weeks'), ('medium_term', 'Last 6 Months'), ('long_term', 'All Time')]:
-        genres = set()
-        for artist in session_obj.artists.filter(time_range=tr):
-            for g in artist.genres.split(','):
-                g = g.strip().lower()
-                if g:
-                    genres.add(g)
-        results[tr] = {'label': label, 'count': len(genres)}
+def _compute_artist_movers(session_obj):
+    short_ranked = {
+        a.spotify_id: {'name': a.name, 'rank': a.rank}
+        for a in session_obj.artists.filter(time_range='short_term')
+    }
+    long_ranked = {
+        a.spotify_id: {'name': a.name, 'rank': a.rank}
+        for a in session_obj.artists.filter(time_range='long_term')
+    }
 
-    short_count = results['short_term']['count']
-    long_count = results['long_term']['count']
-    trend = 'expanding' if short_count > long_count else 'narrowing' if short_count < long_count else 'stable'
+    movers = []
+    for sid, sa in short_ranked.items():
+        if sid in long_ranked:
+            diff = long_ranked[sid]['rank'] - sa['rank']
+            if diff != 0:
+                movers.append({
+                    'name': sa['name'],
+                    'old_rank': long_ranked[sid]['rank'],
+                    'new_rank': sa['rank'],
+                    'change': diff,
+                    'direction': 'up' if diff > 0 else 'down',
+                })
+
+    movers.sort(key=lambda x: abs(x['change']), reverse=True)
 
     return {
-        'ranges': results,
-        'trend': trend,
+        'top_gainers': [m for m in movers if m['direction'] == 'up'][:3],
+        'top_losers': [m for m in movers if m['direction'] == 'down'][:3],
+        'total_movers': len(movers),
     }
 
 
-def _compute_attention_span(session_obj):
-    results = {}
-    for tr in ('short_term', 'long_term'):
-        qs = session_obj.tracks.filter(time_range=tr)
-        avg_ms = qs.aggregate(avg=db_models.Avg('duration_ms'))['avg']
-        results[tr] = round(avg_ms / 1000, 1) if avg_ms else 0
-
-    return {
-        'short_term_secs': results['short_term'],
-        'long_term_secs': results['long_term'],
-        'diff_secs': round(results['short_term'] - results['long_term'], 1),
-    }
-
-
-def _compute_library_stats(session_obj):
-    saved = session_obj.tracks.filter(time_range='saved').order_by('rank')
-    if not saved.exists():
+def _compute_recent_plays(session_obj):
+    recent = session_obj.tracks.filter(time_range='recent', played_at__isnull=False)
+    if not recent.exists():
         return None
 
-    top_artists_list = (
-        saved.values('artist_name')
-        .annotate(count=db_models.Count('id'))
-        .order_by('-count')[:5]
-    )
-    total_ms = saved.aggregate(total=db_models.Sum('duration_ms'))['total'] or 0
+    from collections import Counter
+    artist_counter = Counter()
+    track_counter = Counter()
+    day_counter = Counter()
+    hour_counter = Counter()
+
+    for t in recent:
+        artist_counter[t.artist_name] += 1
+        track_counter[f'{t.name} — {t.artist_name}'] += 1
+        day_counter[t.played_at.strftime('%A')] += 1
+        hour_counter[t.played_at.hour] += 1
+
+    top_artist = artist_counter.most_common(1)[0]
+    top_track = track_counter.most_common(1)[0]
+    top_day = day_counter.most_common(1)[0]
+    peak_hour = hour_counter.most_common(1)[0]
 
     return {
-        'total_tracks': saved.count(),
-        'top_saved_artists': [a['artist_name'] for a in top_artists_list],
-        'total_hours': round(total_ms / 3600000, 1),
+        'total_plays': recent.count(),
+        'top_artist': {'name': top_artist[0], 'plays': top_artist[1]},
+        'top_track': {'name': top_track[0], 'plays': top_track[1]},
+        'top_day': {'name': top_day[0], 'plays': top_day[1]},
+        'peak_hour': f'{peak_hour[0]}:00',
+        'day_breakdown': dict(day_counter.most_common()),
     }
 
 

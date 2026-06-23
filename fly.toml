@@ -15,9 +15,6 @@ primary_region = "iad"
   CSRF_TRUSTED_ORIGINS = "https://tunescript.fly.dev"
   SECURE_SSL_REDIRECT = "True"
 
-[deploy]
-  release_command = "python manage.py migrate --noinput"
-
 [[mounts]]
   source = "data"
   destination = "/data"

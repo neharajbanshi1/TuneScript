@@ -97,6 +97,33 @@
     </div>
 </div>
 
+{% if library_stats %}
+<div class="card">
+    <h2>💾 Saved Library</h2>
+    <p class="witty-tag">
+        You've got <strong>{{ library_stats.total_tracks }}</strong> saved tracks — that's {{ library_stats.total_hours }} hours of music.
+    </p>
+    <div style="display: flex; gap: 32px; align-items: center; justify-content: center; text-align: center;">
+        <div>
+            <div class="stat-number">{{ library_stats.total_tracks }}</div>
+            <div class="stat-label">Saved Tracks</div>
+        </div>
+        <div>
+            <div class="stat-number">{{ library_stats.total_hours }}</div>
+            <div class="stat-label">Hours</div>
+        </div>
+    </div>
+    {% if library_stats.top_saved_artists %}
+    <div style="margin-top: 12px;">
+        <p style="font-size: 0.8rem; color: #666;">Most saved:</p>
+        {% for name in library_stats.top_saved_artists %}
+        <span class="badge">{{ name }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if listening_times %}
 <div class="card">
     <h2>⏰ When You Listen</h2>

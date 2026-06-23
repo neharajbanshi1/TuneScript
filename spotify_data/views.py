@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 from django.conf import settings
+from django.db import models as db_models
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_GET
 
@@ -72,6 +73,23 @@ def callback(request):
                 rank=i + 1,
             )
 
+    # Fetch saved tracks
+    raw_saved = spotify.get_saved_tracks(access_token)
+    saved_track_count = 0
+    for i, t in enumerate(raw_saved):
+        Track.objects.create(
+            session=session,
+            spotify_id=t['id'],
+            name=t['name'],
+            artist_name=t['artists'][0]['name'] if t.get('artists') else '',
+            album_name=t['album']['name'] if t.get('album') else '',
+            album_image_url=t['album']['images'][0]['url'] if t.get('album') and t['album'].get('images') else '',
+            duration_ms=t.get('duration_ms', 0),
+            time_range='saved',
+            rank=i + 1,
+        )
+    saved_track_count = len(raw_saved)
+
     # Fetch recently played
     raw_recent = spotify.get_recently_played(access_token)
     for i, item in enumerate(raw_recent):
@@ -93,6 +111,7 @@ def callback(request):
     request.session['display_name'] = session.display_name
     request.session['refresh_token'] = refresh_token
     request.session['access_token'] = access_token
+    request.session['saved_track_count'] = saved_track_count
 
     return redirect('dashboard')
 
@@ -122,6 +141,7 @@ def dashboard(request):
     genre_data = _compute_genre_data(session_obj)
     taste_shift = _compute_taste_shift(session_obj)
     listening_times = _compute_listening_times(session_obj)
+    library_stats = _compute_library_stats(session_obj)
 
     display_name = request.session.get('display_name', 'You')
 
@@ -132,6 +152,7 @@ def dashboard(request):
         'genres': genre_data,
         'taste_shift': taste_shift,
         'listening_times': listening_times,
+        'library_stats': library_stats,
     }
     return render(request, 'dashboard.html', context)
 
@@ -237,6 +258,25 @@ def _compute_listening_times(session_obj):
         'buckets': buckets,
         'top_bucket': top_bucket,
         'total': recent.count(),
+    }
+
+
+def _compute_library_stats(session_obj):
+    saved = session_obj.tracks.filter(time_range='saved').order_by('rank')
+    if not saved.exists():
+        return None
+
+    top_artists_list = (
+        saved.values('artist_name')
+        .annotate(count=db_models.Count('id'))
+        .order_by('-count')[:5]
+    )
+    total_ms = saved.aggregate(total=db_models.Sum('duration_ms'))['total'] or 0
+
+    return {
+        'total_tracks': saved.count(),
+        'top_saved_artists': [a['artist_name'] for a in top_artists_list],
+        'total_hours': round(total_ms / 3600000, 1),
     }
 
 

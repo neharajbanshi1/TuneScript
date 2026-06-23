@@ -142,6 +142,10 @@ def dashboard(request):
     taste_shift = _compute_taste_shift(session_obj)
     listening_times = _compute_listening_times(session_obj)
     library_stats = _compute_library_stats(session_obj)
+    commitment = _compute_commitment(session_obj)
+    album_obsession = _compute_album_obsession(session_obj)
+    adventurousness = _compute_adventurousness(session_obj)
+    attention_span = _compute_attention_span(session_obj)
 
     display_name = request.session.get('display_name', 'You')
 
@@ -153,6 +157,10 @@ def dashboard(request):
         'taste_shift': taste_shift,
         'listening_times': listening_times,
         'library_stats': library_stats,
+        'commitment': commitment,
+        'album_obsession': album_obsession,
+        'adventurousness': adventurousness,
+        'attention_span': attention_span,
     }
     return render(request, 'dashboard.html', context)
 
@@ -258,6 +266,91 @@ def _compute_listening_times(session_obj):
         'buckets': buckets,
         'top_bucket': top_bucket,
         'total': recent.count(),
+    }
+
+
+def _compute_commitment(session_obj):
+    artists_short = set(
+        session_obj.artists.filter(time_range='short_term').values_list('spotify_id', flat=True)
+    )
+    artists_med = set(
+        session_obj.artists.filter(time_range='medium_term').values_list('spotify_id', flat=True)
+    )
+    artists_long = set(
+        session_obj.artists.filter(time_range='long_term').values_list('spotify_id', flat=True)
+    )
+    committed = artists_short & artists_med & artists_long
+    unique_all = artists_short | artists_med | artists_long
+
+    committed_names = list(
+        session_obj.artists.filter(
+            time_range='long_term', spotify_id__in=committed
+        ).order_by('rank').values_list('name', flat=True)[:5]
+    )
+
+    return {
+        'count': len(committed),
+        'total_unique': len(unique_all),
+        'score': round(len(committed) / max(len(unique_all), 1) * 100),
+        'committed_artists': committed_names,
+    }
+
+
+def _compute_album_obsession(session_obj):
+    all_top_tracks = session_obj.tracks.filter(
+        time_range__in=('short_term', 'medium_term', 'long_term'),
+    )
+    if not all_top_tracks.exists():
+        return None
+
+    album_counts = (
+        all_top_tracks.values('album_name', 'artist_name')
+        .annotate(count=db_models.Count('id'))
+        .order_by('-count')
+    )
+    top = album_counts.first()
+    if not top or top['count'] < 2:
+        return None
+
+    return {
+        'album': top['album_name'],
+        'artist': top['artist_name'],
+        'track_count': top['count'],
+    }
+
+
+def _compute_adventurousness(session_obj):
+    results = {}
+    for tr, label in [('short_term', 'Last 4 Weeks'), ('medium_term', 'Last 6 Months'), ('long_term', 'All Time')]:
+        genres = set()
+        for artist in session_obj.artists.filter(time_range=tr):
+            for g in artist.genres.split(','):
+                g = g.strip().lower()
+                if g:
+                    genres.add(g)
+        results[tr] = {'label': label, 'count': len(genres)}
+
+    short_count = results['short_term']['count']
+    long_count = results['long_term']['count']
+    trend = 'expanding' if short_count > long_count else 'narrowing' if short_count < long_count else 'stable'
+
+    return {
+        'ranges': results,
+        'trend': trend,
+    }
+
+
+def _compute_attention_span(session_obj):
+    results = {}
+    for tr in ('short_term', 'long_term'):
+        qs = session_obj.tracks.filter(time_range=tr)
+        avg_ms = qs.aggregate(avg=db_models.Avg('duration_ms'))['avg']
+        results[tr] = round(avg_ms / 1000, 1) if avg_ms else 0
+
+    return {
+        'short_term_secs': results['short_term'],
+        'long_term_secs': results['long_term'],
+        'diff_secs': round(results['short_term'] - results['long_term'], 1),
     }
 
 

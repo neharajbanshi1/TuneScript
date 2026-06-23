@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+{% block title %}TuneScript — {{ display_name }}'s stats{% endblock %}
+{% block nav_extra %}
+    <a href="{% url 'logout' %}">Logout</a>
+{% endblock %}
+{% block content %}
+
+<div style="margin-bottom: 24px;">
+    <p style="font-size: 0.85rem; color: #888;">Logged in as <strong style="color: #fff;">{{ display_name }}</strong></p>
+    <p class="witty-tag">
+        {% if taste_shift.shift_pct > 50 %}
+            Who even are you anymore? {{ taste_shift.shift_pct }}% of your current faves are new.
+        {% elif taste_shift.shift_pct > 25 %}
+            New music is creeping in — {{ taste_shift.shift_pct }}% turnover from your all-time list.
+        {% else %}
+            You know what you like. Only {{ taste_shift.shift_pct }}% of your current top tracks are new.
+        {% endif %}
+    </p>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>🎵 Top Artists</h2>
+        <div class="time-toggle" id="artist-toggle">
+            <button class="active" data-range="short_term">4 Weeks</button>
+            <button data-range="medium_term">6 Months</button>
+            <button data-range="long_term">All Time</button>
+        </div>
+        {% for tr_key, artists in top_artists.items %}
+        <div class="artist-grid" data-artist-range="{{ tr_key }}" {% if tr_key != 'short_term' %}style="display:none"{% endif %}>
+            {% for a in artists|slice:":12" %}
+            <div class="artist-item">
+                {% if a.image_url %}
+                <img src="{{ a.image_url }}" alt="{{ a.name }}" loading="lazy">
+                {% else %}
+                <div style="width:64px;height:64px;border-radius:50%;background:#282828;margin:0 auto 6px;"></div>
+                {% endif %}
+                <div class="name">{{ a.name }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <h2>🎧 Top Tracks</h2>
+        <div class="time-toggle" id="track-toggle">
+            <button class="active" data-range="short_term">4 Weeks</button>
+            <button data-range="medium_term">6 Months</button>
+            <button data-range="long_term">All Time</button>
+        </div>
+        {% for tr_key, tracks in top_tracks.items %}
+        <ul class="track-list" data-track-range="{{ tr_key }}" {% if tr_key != 'short_term' %}style="display:none"{% endif %}>
+            {% for t in tracks|slice:":10" %}
+            <li>
+                <span class="rank">#{{ t.rank }}</span>
+                <span class="track-name">{{ t.name }}</span>
+                <span class="track-artist">{{ t.artist_name }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h2>🧬 Genre DNA</h2>
+        <p class="witty-tag">
+            {% if genres.total > 0 %}
+                {{ genres.labels|first|title }} is running your life (and {{ genres.labels|length|add:"-1" }} other genres).
+            {% endif %}
+        </p>
+        <div class="canvas-container"><canvas id="genreChart"></canvas></div>
+    </div>
+
+    <div class="card">
+        <h2>🔄 Taste Evolution</h2>
+        <p class="witty-tag">
+            You've replaced <strong>{{ taste_shift.shift_pct }}%</strong> of your all-time faves with new discoveries.
+        </p>
+        <div class="canvas-container"><canvas id="tasteChart"></canvas></div>
+        <div style="margin-top: 16px; display: flex; justify-content: space-around; text-align: center;">
+            <div>
+                <div class="stat-number">{{ taste_shift.new_count }}</div>
+                <div class="stat-label">New Faves</div>
+            </div>
+            <div>
+                <div class="stat-number">{{ taste_shift.constant_count }}</div>
+                <div class="stat-label">Loyalties</div>
+            </div>
+            <div>
+                <div class="stat-number">{{ taste_shift.nostalgia_count }}</div>
+                <div class="stat-label">Old Gems</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if listening_times %}
+<div class="card">
+    <h2>⏰ When You Listen</h2>
+    <p class="witty-tag">
+        Peak listening time: <strong>{{ listening_times.top_bucket }}</strong>. 
+        {% if listening_times.top_bucket == 'night' %}
+            Night owl energy. Who needs sleep when there are bangers to be heard?
+        {% elif listening_times.top_bucket == 'morning' %}
+            Early bird! You're out here finding new music before the sun is up.
+        {% elif listening_times.top_bucket == 'afternoon' %}
+            Midday music warrior. Work? Never heard of her.
+        {% else %}
+            Evening vibes. Winding down with your favorite tracks.
+        {% endif %}
+    </p>
+    <div class="canvas-container" style="max-width:400px;margin:0 auto;"><canvas id="timeChart"></canvas></div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Time range toggles
+document.querySelectorAll('.time-toggle').forEach(toggle => {
+    toggle.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const range = btn.dataset.range;
+            const parent = toggle.parentElement;
+            toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (parent.id === 'artist-toggle') {
+                document.querySelectorAll('[data-artist-range]').forEach(el => {
+                    el.style.display = el.dataset.artistRange === range ? '' : 'none';
+                });
+            } else {
+                document.querySelectorAll('[data-track-range]').forEach(el => {
+                    el.style.display = el.dataset.trackRange === range ? '' : 'none';
+                });
+            }
+        });
+    });
+});
+
+// Genre Chart
+new Chart(document.getElementById('genreChart'), {
+    type: 'doughnut',
+    data: {
+        labels: {{ genres.labels|safe }},
+        datasets: [{
+            data: {{ genres.values|safe }},
+            backgroundColor: ['#1db954','#1ed760','#169c46','#14863c','#1aa34a','#0d7a34','#1fbf56','#28d465','#0f8c3a','#34e070'],
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { color: '#888', padding: 12, font: { size: 11 } } }
+        }
+    }
+});
+
+// Taste shift chart
+new Chart(document.getElementById('tasteChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['New Faves', 'Loyalties', 'Faded Faves'],
+        datasets: [{
+            data: [{{ taste_shift.new_count }}, {{ taste_shift.constant_count }}, {{ taste_shift.nostalgia_count }}],
+            backgroundColor: ['#1db954', '#1ed760', '#282828'],
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { color: '#888', padding: 12, font: { size: 11 } } }
+        }
+    }
+});
+
+{% if listening_times %}
+// Time chart
+new Chart(document.getElementById('timeChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Morning (5-12)', 'Afternoon (12-17)', 'Evening (17-22)', 'Night (22-5)'],
+        datasets: [{
+            data: [{{ listening_times.buckets.morning }}, {{ listening_times.buckets.afternoon }}, {{ listening_times.buckets.evening }}, {{ listening_times.buckets.night }}],
+            backgroundColor: ['#f9a825', '#ff7043', '#1db954', '#4fc3f7'],
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { color: '#888', padding: 12, font: { size: 11 } } }
+        }
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

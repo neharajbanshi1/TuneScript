@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}TuneScript — your Spotify, dissected{% endblock %}
+{% block content %}
+<div class="landing">
+    <h1>♫ TuneScript</h1>
+    <p class="subtitle">Your Spotify data. No fluff. Just receipts.</p>
+    <p>See who you actually streamed at 3 AM, which genre is secretly running your life, and how your taste has (or hasn't) evolved since high school.</p>
+    <a href="{% url 'login' %}" class="btn btn-primary">Login with Spotify</a>
+    <p style="margin-top: 24px; font-size: 0.8rem; color: #555;">We don't store anything permanently. No account needed.</p>
+</div>
+{% endblock %}

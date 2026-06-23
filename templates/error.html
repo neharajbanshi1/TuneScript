@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Something went wrong{% endblock %}
+{% block content %}
+<div class="landing">
+    <h1>😬 Oops</h1>
+    <p>{{ message|default:"Something went wrong. Try logging in again." }}</p>
+    <a href="{% url 'landing' %}" class="btn btn-primary" style="margin-top: 20px;">Try Again</a>
+</div>
+{% endblock %}

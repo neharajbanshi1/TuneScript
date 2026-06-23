@@ -64,14 +64,51 @@
 </div>
 
 <div class="grid-2">
-    <div class="card">
-        <h2>🧬 Genre DNA</h2>
+        <div class="card">
+        <h2>📊 Listening Concentration</h2>
+        {% if concentration %}
         <p class="witty-tag">
-            {% if genres.total > 0 %}
-                {{ genres.labels|first|title }} is running your life (and {{ genres.labels|length|add:"-1" }} other genres).
+            {% if concentration.tag == 'loyalist' %}
+                You're a <strong>loyalist</strong> — {{ concentration.top_three_pct }}% of your top tracks come from just 3 artists.
+            {% elif concentration.tag == 'curator' %}
+                You're a <strong>curator</strong> — {{ concentration.unique_artists }} artists with {{ concentration.top_three_pct }}% going to the top 3.
+            {% else %}
+                You're an <strong>explorer</strong> — {{ concentration.unique_artists }} different artists and your top 3 only take {{ concentration.top_three_pct }}%.
             {% endif %}
         </p>
-        <div class="canvas-container"><canvas id="genreChart"></canvas></div>
+        <div style="margin-bottom: 16px;">
+            <div style="height: 28px; display: flex; border-radius: 6px; overflow: hidden; background: #1f1f1f;">
+                {% for artist in concentration.top_three %}
+                <div style="width: {{ artist.pct }}%; min-width: fit-content; padding: 0 6px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 600; color: #000; white-space: nowrap;
+                    {% if forloop.first %}background: #1db954;{% elif forloop.counter == 2 %}background: #1ed760;{% else %}background: #169c46;{% endif %}">
+                    {{ artist.name }}
+                </div>
+                {% endfor %}
+                <div style="flex: 1; padding: 0 6px; display: flex; align-items: center; font-size: 0.6rem; color: #555;">
+                    +{{ concentration.others_pct }}%
+                </div>
+            </div>
+        </div>
+        <div style="display: flex; gap: 16px; justify-content: center; text-align: center;">
+            <div>
+                <div class="stat-number">{{ concentration.unique_artists }}</div>
+                <div class="stat-label">Artists in Top Tracks</div>
+            </div>
+            <div>
+                <div class="stat-number">{{ concentration.total_tracks }}</div>
+                <div class="stat-label">Total Tracks</div>
+            </div>
+        </div>
+        {% if concentration.top_three %}
+        <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;">
+            {% for artist in concentration.top_three %}
+            <span class="badge" style="font-size: 0.8rem;">#{{ forloop.counter }} {{ artist.name }} ({{ artist.count }})</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="witty-tag">Not enough data to compute.</p>
+        {% endif %}
     </div>
 
     <div class="card">
@@ -255,25 +292,6 @@ document.querySelectorAll('.time-toggle').forEach(toggle => {
             }
         });
     });
-});
-
-// Genre Chart
-new Chart(document.getElementById('genreChart'), {
-    type: 'doughnut',
-    data: {
-        labels: {{ genres.labels|safe }},
-        datasets: [{
-            data: {{ genres.values|safe }},
-            backgroundColor: ['#1db954','#1ed760','#169c46','#14863c','#1aa34a','#0d7a34','#1fbf56','#28d465','#0f8c3a','#34e070'],
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: { position: 'bottom', labels: { color: '#888', padding: 12, font: { size: 11 } } }
-        }
-    }
 });
 
 // Taste shift chart

@@ -96,6 +96,11 @@ def get_recently_played(access_token, limit=50):
     return data.get('items', []) if data else []
 
 
+def get_artist(access_token, artist_id):
+    data = _fetch(f'{API_BASE}/artists/{artist_id}', _headers(access_token))
+    return data or {}
+
+
 def get_saved_tracks(access_token, limit=50):
     url = f'{API_BASE}/me/tracks'
     params = {'limit': limit}

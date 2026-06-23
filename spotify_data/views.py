@@ -143,6 +143,7 @@ def dashboard(request):
     listening_times = _compute_listening_times(session_obj)
     library_stats = _compute_library_stats(session_obj)
     commitment = _compute_commitment(session_obj)
+    concentration = _compute_concentration(session_obj)
     album_obsession = _compute_album_obsession(session_obj)
     adventurousness = _compute_adventurousness(session_obj)
     attention_span = _compute_attention_span(session_obj)
@@ -158,6 +159,7 @@ def dashboard(request):
         'listening_times': listening_times,
         'library_stats': library_stats,
         'commitment': commitment,
+        'concentration': concentration,
         'album_obsession': album_obsession,
         'adventurousness': adventurousness,
         'attention_span': attention_span,
@@ -194,7 +196,6 @@ def _get_top_tracks_by_range(session_obj):
 
 
 def _compute_genre_data(session_obj):
-    """Count genre frequency across all top artists."""
     genre_counter = Counter()
     for artist in session_obj.artists.filter(time_range='long_term'):
         for g in artist.genres.split(','):
@@ -202,11 +203,64 @@ def _compute_genre_data(session_obj):
             if g:
                 genre_counter[g] += 1
     total = sum(genre_counter.values())
+    if not total:
+        return None
     top_genres = genre_counter.most_common(10)
     return {
         'labels': [g for g, _ in top_genres],
         'values': [c for _, c in top_genres],
         'total': total,
+    }
+
+
+def _compute_concentration(session_obj):
+    tracks = session_obj.tracks.filter(
+        time_range__in=('short_term', 'medium_term', 'long_term'),
+    )
+    if not tracks.exists():
+        return None
+
+    artist_counts = list(
+        tracks.values('artist_name')
+        .annotate(count=db_models.Count('id'))
+        .order_by('-count')
+    )
+    total_tracks = sum(a['count'] for a in artist_counts)
+    unique_artists = len(artist_counts)
+    top_three_pct = round(
+        sum(a['count'] for a in artist_counts[:3]) / total_tracks * 100
+    ) if total_tracks else 0
+
+    top_three = [
+        {
+            'name': a['artist_name'],
+            'count': a['count'],
+            'pct': round(a['count'] / total_tracks * 100) if total_tracks else 0,
+        }
+        for a in artist_counts[:3]
+    ]
+
+    others_count = total_tracks - sum(a['count'] for a in artist_counts[:3])
+    others_pct = round(others_count / total_tracks * 100) if total_tracks else 0
+
+    if top_three_pct > 60:
+        label = 'Concentrated'
+        tag = 'loyalist'
+    elif top_three_pct > 35:
+        label = 'Balanced'
+        tag = 'curator'
+    else:
+        label = 'Diverse'
+        tag = 'explorer'
+
+    return {
+        'label': label,
+        'tag': tag,
+        'unique_artists': unique_artists,
+        'top_three_pct': top_three_pct,
+        'others_pct': others_pct,
+        'top_three': top_three,
+        'total_tracks': total_tracks,
     }
 
 
